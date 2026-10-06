@@ -352,7 +352,7 @@ export default function App() {
             ))}
           </div>
 
-          {/* EXACTLY 2 MAIN BUTTONS: OYNA & AYARLAR */}
+          {/* Main menu actions */}
           <div className="flex flex-col gap-3 w-[340px]">
             <button
               onClick={() => {
@@ -373,6 +373,16 @@ export default function App() {
               className="mc-btn w-full !py-3 !text-lg"
             >
               Ayarlar
+            </button>
+
+            <button
+              onClick={() => {
+                Sound.click();
+                window.location.assign('/');
+              }}
+              className="mc-btn w-full !py-3 !text-lg bg-red-900/60 border-red-700"
+            >
+              Oyundan Çık
             </button>
           </div>
 

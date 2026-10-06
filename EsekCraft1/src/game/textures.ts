@@ -567,6 +567,8 @@ export let atlasCanvas: HTMLCanvasElement | null = null;
 export let atlasTexture: THREE.CanvasTexture | null = null;
 export let crackTextures: THREE.CanvasTexture[] = [];
 export const iconDataUrls: Record<number, string> = {};
+const itemIconCanvases = new Map<number, HTMLCanvasElement>();
+const itemIconTextures = new Map<number, THREE.CanvasTexture>();
 
 /**
  * Generate Atlas & Crack Textures
@@ -1199,6 +1201,11 @@ function buildCrackStages() {
  * Procedural Item Icon Generator
  */
 export function generateAllItemIcons() {
+  itemIconTextures.forEach((texture) => texture.dispose());
+  itemIconTextures.clear();
+  itemIconCanvases.clear();
+  Object.keys(iconDataUrls).forEach((id) => delete iconDataUrls[Number(id)]);
+
   // First, map block items from atlas
   for (const key in BLOCK_DEFS) {
     const blockId = Number(key);
@@ -1219,6 +1226,7 @@ export function generateAllItemIcons() {
     if (atlasCanvas) {
       ctx.drawImage(atlasCanvas, tx, ty, TILE_SIZE, TILE_SIZE, 2, 2, 28, 28);
     }
+    itemIconCanvases.set(blockId, canvas);
     iconDataUrls[blockId] = canvas.toDataURL();
   }
 
@@ -1230,6 +1238,7 @@ export function generateAllItemIcons() {
     const ctx = c.getContext('2d')!;
     ctx.imageSmoothingEnabled = false;
     drawFn(ctx);
+    itemIconCanvases.set(id, c);
     iconDataUrls[id] = c.toDataURL();
   };
 
@@ -1580,4 +1589,22 @@ export function getItemIcon(id: AnyItemId): string {
   if (iconDataUrls[id]) return iconDataUrls[id];
   // Fallback
   return '';
+}
+
+/** Returns the cached pixel-art icon as a GPU texture for dropped items. */
+export function getItemTexture(id: AnyItemId): THREE.CanvasTexture | null {
+  const iconCanvas = itemIconCanvases.get(id);
+  if (!iconCanvas) return null;
+
+  let texture = itemIconTextures.get(id);
+  if (!texture) {
+    texture = new THREE.CanvasTexture(iconCanvas);
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    itemIconTextures.set(id, texture);
+  }
+
+  return texture;
 }

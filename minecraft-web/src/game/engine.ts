@@ -27,6 +27,7 @@ import {
   atlasTexture,
   crackTextures,
   getItemName,
+  getItemTexture,
 } from './textures';
 import { VoxelWorld, inBounds, IDX } from './world';
 import { Sound, SoundMaterial } from './audio';
@@ -328,6 +329,8 @@ export class MinecraftEngine {
 
   public destroy() {
     cancelAnimationFrame(this.animFrameId);
+    this.drops.forEach((drop) => this.disposeDropMesh(drop.mesh));
+    this.drops = [];
     this.mobs.forEach((m) => {
       this.scene.remove(m.mesh);
     });
@@ -1896,9 +1899,31 @@ export class MinecraftEngine {
 
   // ================= DROPS & PARTICLES =================
   public spawnDrop(x: number, y: number, z: number, id: AnyItemId, count: number) {
-    const geo = new THREE.BoxGeometry(0.28, 0.28, 0.28);
-    const mesh = new THREE.Mesh(geo, this.worldMaterial);
-    this.setupMeshUVs(geo, id);
+    const halfSize = 0.22;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([
+      -halfSize, -halfSize, 0, halfSize, -halfSize, 0,
+      halfSize, halfSize, 0, -halfSize, halfSize, 0,
+      0, -halfSize, halfSize, 0, -halfSize, -halfSize,
+      0, halfSize, -halfSize, 0, halfSize, halfSize,
+    ], 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute([
+      0, 0, 1, 0, 1, 1, 0, 1,
+      0, 0, 1, 0, 1, 1, 0, 1,
+    ], 2));
+    geo.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]);
+    geo.computeVertexNormals();
+
+    const texture = getItemTexture(id);
+    const material = new THREE.MeshBasicMaterial({
+      map: texture ?? undefined,
+      color: texture ? 0xffffff : 0xff33cc,
+      transparent: Boolean(texture),
+      alphaTest: texture ? 0.05 : 0,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geo, material);
     mesh.position.set(x, y, z);
     this.scene.add(mesh);
 
@@ -1914,6 +1939,16 @@ export class MinecraftEngine {
       age: 0,
       baseY: null,
     });
+  }
+
+  private disposeDropMesh(mesh: THREE.Mesh) {
+    this.scene.remove(mesh);
+    mesh.geometry.dispose();
+    if (Array.isArray(mesh.material)) {
+      mesh.material.forEach((material) => material.dispose());
+    } else {
+      mesh.material.dispose();
+    }
   }
 
   private updateDrops(dt: number) {
@@ -1936,8 +1971,7 @@ export class MinecraftEngine {
         if (dist < 0.9) {
           const remaining = this.addToInventory(drop.id, drop.count);
           if (remaining <= 0) {
-            this.scene.remove(drop.mesh);
-            drop.mesh.geometry.dispose();
+            this.disposeDropMesh(drop.mesh);
             this.drops.splice(i, 1);
             Sound.pickup();
             this.onHUDUpdate?.();
